@@ -3,9 +3,9 @@ package com.techo.app.services;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Arrays;
+
+import javax.annotation.PostConstruct;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,14 +16,7 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.techo.app.controllers.HomeController;
 import com.techo.app.exceptions.ServiceException;
-import com.techo.app.vo.Item;
-import com.techo.app.vo.SatisfactionDTO;
 
 /**
  * This is the main Service class that provides service to the
@@ -57,56 +50,49 @@ public class SatisfactionService {
 		return resource;
 	}
 
-	/**
-	 * This method returns the {@link JsonObject} that represents the
-	 * Satisfaction details like timeLeft, details and maxSatisfaction
-	 * 
-	 * @see SatisfactionDTO for more details
-	 * @return The {@link JsonObject} that Represents the
-	 *         {@link SatisfactionDTO} which includes the timeLeft, details and
-	 *         maxSatisfaction
-	 * @throws ServiceException
-	 * 
-	 *             this may throw {@link ServiceException} in case of any error
-	 *             in the Service
-	 */
-	public JsonObject getMaximumSatisfaction() throws ServiceException {
-		LOGGER.info("SatisfactionService :: getMaximumSatisfaction() : started");
-		ArrayList<Item> dataList = new ArrayList<Item>();
-		long totalTime = getTotalTime();
-		createItemList(dataList);
-		SatisfactionDTO satisfactionDTO = processItemList(dataList, totalTime);
-		LOGGER.info("Max Satisfaction :: " + satisfactionDTO.getMaxSatisfaction());
-		JsonObject obj = new JsonObject();
-		try {
-			String jsonStr = new ObjectMapper().writeValueAsString(satisfactionDTO);
-			obj = (JsonObject) new JsonParser().parse(jsonStr);
-		} catch (JsonProcessingException e) {
-			throw new ServiceException("Some error while parsing Json ::" + e.toString(), e,
-					HttpStatus.INTERNAL_SERVER_ERROR);
-		}
-		LOGGER.info("SatisfactionService :: getMaximumSatisfaction() : ended");
-		return obj;
+	private long[] timeArray;
+
+	private long[] satisfactionArray;
+
+	private long[][] timeSatisfactionArray;
+
+	private int totalTime = 0;
+
+	private int noOfItems = 0;
+
+	public long getMaxSatisfaction() throws ServiceException {
+		long result = 0L;
+		long startTime = System.currentTimeMillis();
+		result = getMaxSatisfaction(noOfItems, totalTime);
+		long endTime = System.currentTimeMillis();
+		long timeInSecs = (endTime - startTime);
+		LOGGER.info("result  :: " + result + " in " + timeInSecs + " milli seconds");
+		return result;
 	}
 
-	/**
-	 * This method reads the data file and gets the Total Time in the data file.
-	 * 
-	 * @return the time left obtained from the data file's first line
-	 * @throws ServiceException
-	 *             may throw {@link ServiceException} in case of any Service
-	 *             layer error
-	 */
-	public long getTotalTime() throws ServiceException {
-		LOGGER.info("SatisfactionService::getTotalTime( ): started");
-		long totalTimeLeft = 0L;
+	@PostConstruct
+	private void initializeArrays() throws ServiceException {
 		BufferedReader br = null;
 		try {
 			Resource resource = getResource();
 			br = new BufferedReader(new InputStreamReader(resource.getInputStream()));
 			String s = "";
 			s = br.readLine();
-			totalTimeLeft = Integer.valueOf(s.split(" ")[0]);
+			totalTime = Integer.valueOf(s.split(" ")[0]);
+			noOfItems = Integer.valueOf(s.split(" ")[1]);
+			int n = noOfItems;
+			timeArray = new long[n + 1];
+			satisfactionArray = new long[n + 1];
+			// initialize the values in the arrays
+			while ((s = br.readLine()) != null) {
+				satisfactionArray[n] = Long.valueOf(s.split(" ")[0]);
+				timeArray[n] = Long.valueOf(s.split(" ")[1]);
+				n--;
+			}
+			timeSatisfactionArray = new long[noOfItems + 1][totalTime + 1];
+			// initialize all to -1L
+			for (long[] arr : timeSatisfactionArray)
+				Arrays.fill(arr, -1L);
 		} catch (NumberFormatException | IOException e) {
 			LOGGER.error("Some error occurred in App :: " + e.toString());
 			throw new ServiceException("Some error occurred in App :: " + e.toString(), e,
@@ -119,94 +105,34 @@ public class SatisfactionService {
 					LOGGER.error("Some error while closing the BufferedReader");
 				}
 		}
-		LOGGER.info("SatisfactionService::getTotalTime( ): ended");
-		return totalTimeLeft;
 	}
 
-	/**
-	 * This method creates a List of {@link Item} from the data file. The
-	 * reading starts from the second line onwards becasue the first line is for
-	 * total Time and no Of Items
-	 * 
-	 * @param list
-	 *            The created {@link List} of {@link Item} based on the data
-	 *            file provided
-	 * @throws ServiceException
-	 *             may throw {@link ServiceException} in case of any Service
-	 *             Layer error
-	 */
-	public void createItemList(List<Item> list) throws ServiceException {
-		LOGGER.info("SatisfactionService::createItemList( ): started");
-		BufferedReader br = null;
-		try {
-			Resource resource = getResource();
-			br = new BufferedReader(new InputStreamReader(resource.getInputStream()));
-			String s = "";
-			s = br.readLine();// skip the first Line
-			while ((s = br.readLine()) != null) {
-				double factor = Double.valueOf(s.split(" ")[0]) / Double.valueOf(s.split(" ")[1]);
-				Item obj = new Item(Long.valueOf(s.split(" ")[1]), Long.valueOf(s.split(" ")[0]), factor);
-				list.add(obj);
-			}
-			// sort according to the highest factor/rate
-			Collections.sort(list);
-		} catch (IOException e) {
-			LOGGER.error("Some error occurred in App :: " + e.toString());
-			throw new ServiceException("Some error occurred in App :: " + e.toString(), e,
-					HttpStatus.SERVICE_UNAVAILABLE);
-		} finally {
-			if (null != br)
-				try {
-					br.close();
-				} catch (IOException e) {
-					LOGGER.error("Some error while closing the BufferedReader");
-				}
+	private Long getMaxSatisfaction(int noOfItems, int totalTime) {
+		if (timeSatisfactionArray[noOfItems][totalTime] != -1)
+			return timeSatisfactionArray[noOfItems][totalTime];
+		Long result = 0L;
+		if (noOfItems == 0 || totalTime == 0)
+			result = 0L;
+		else if (timeAt(noOfItems) > totalTime)
+			result = getMaxSatisfaction(noOfItems - 1, totalTime);
+		else {
+			long val1 = getMaxSatisfaction(noOfItems - 1, totalTime);
+			long val2 = valueAt(noOfItems) + getMaxSatisfaction(noOfItems - 1, (int) (totalTime - timeAt(noOfItems)));
+			result = Math.max(val1, val2);
 		}
-		LOGGER.info("SatisfactionService::createItemList( ): ended");
+		timeSatisfactionArray[noOfItems][totalTime] = result;
+		return result;
 	}
 
-	/**
-	 * This method is called once the List is created from the data file. It
-	 * processes the {@link List} of {@link Item} provided to create a
-	 * {@link SatisfactionDTO} object that contains details like timeLeft,
-	 * details and maxSatisfaction.
-	 * 
-	 * @param dataList
-	 *            The {@link List} of {@link Item} that is to be processed to
-	 *            create the {@link SatisfactionDTO}
-	 * @param totalTime
-	 *            The total Time which decided how many Items can be consumed
-	 * @return A {@link SatisfactionDTO} that represents the result of
-	 *         processing the List. It contains data like timeLeft, details and
-	 *         maxSatisfaction.
-	 */
-	public SatisfactionDTO processItemList(List<Item> dataList, long totalTime) {
-		LOGGER.info("SatisfactionService::processItemList( ): started");
-		SatisfactionDTO satisfactionDTO = new SatisfactionDTO();
-		long timeLeft = totalTime;
-		long maxSatisfaction = 0L;
-		for (Item item : dataList) {
-			if (timeLeft <= 0) {
-				LOGGER.info("TIME OVER...");
-				break;
-			}
-			if (timeLeft >= item.getTime()) {
-				long noOfPlates = timeLeft / item.getTime();
-				maxSatisfaction += item.getSatisfaction() * noOfPlates;
-				if (noOfPlates >= 1) {
-					LOGGER.info("Gordon Ramsey had " + noOfPlates + " plates of " + item.getSatisfaction()
-							+ " , which added " + item.getSatisfaction() * noOfPlates + " amount to the Satisfaction");
-					satisfactionDTO.setDetails(satisfactionDTO.getDetails() + "; Gordon Ramsey had " + noOfPlates
-							+ " plates of " + item.getSatisfaction() + " , which added "
-							+ item.getSatisfaction() * noOfPlates + " amount to the Satisfaction");
-					timeLeft -= (item.getTime() * noOfPlates);
-				}
-			}
-		}
-		satisfactionDTO.setMaxSatisfaction(maxSatisfaction);
-		satisfactionDTO.setTimeLeft(timeLeft);
-		LOGGER.info("SatisfactionDTO :: " + satisfactionDTO.toString());
-		LOGGER.info("SatisfactionService::processItemList( ): ended");
-		return satisfactionDTO;
+	private long timeAt(int index) {
+		if (timeArray != null)
+			return timeArray[index];
+		return 0L;
+	}
+
+	private long valueAt(int index) {
+		if (satisfactionArray != null)
+			return satisfactionArray[index];
+		return 0L;
 	}
 }

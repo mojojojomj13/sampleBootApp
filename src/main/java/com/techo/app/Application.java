@@ -4,8 +4,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+
+import com.techo.app.services.SatisfactionService;
 
 /**
  * 
@@ -19,7 +22,10 @@ import org.springframework.context.annotation.Configuration;
 @ComponentScan(basePackages = { "com.techo.app" })
 public class Application {
 	public static void main(String[] args) throws Throwable {
-		SpringApplication.run(Application.class, args);
+		ConfigurableApplicationContext ctx = SpringApplication.run(Application.class, args);
+		SatisfactionService service = (SatisfactionService) ctx.getBean("satisfactionService");
+		Long res = service.getMaxSatisfaction();
+		System.out.println("MAX VALUE >>>> :: " + res);
 	}
 
 }
