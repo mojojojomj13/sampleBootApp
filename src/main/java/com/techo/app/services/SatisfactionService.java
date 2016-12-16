@@ -35,6 +35,10 @@ public class SatisfactionService {
 	@Value("${item.file}")
 	private String dataFile;
 
+	public void setDataFile(String dataFile) {
+		this.dataFile = dataFile;
+	}
+
 	/**
 	 * This method returns the data file as a Resource to be used as an
 	 * InputStream
@@ -60,6 +64,15 @@ public class SatisfactionService {
 
 	private int noOfItems = 0;
 
+	/**
+	 * This method gets the Maximum Satisfaction value out of a List of Items
+	 * ({@link #noOfItems}) which has to be consumed in {@link #totalTime} to
+	 * get maximum Satisfaction value
+	 * 
+	 * @return the maximum Satisfaction value
+	 * @throws ServiceException
+	 *             may throw {@link ServiceException} in case any service layer
+	 */
 	public long getMaxSatisfaction() throws ServiceException {
 		long result = 0L;
 		long startTime = System.currentTimeMillis();
@@ -70,8 +83,19 @@ public class SatisfactionService {
 		return result;
 	}
 
+	/**
+	 * This method is an init method that reads the File from the classpath and
+	 * initializes the arrays based on the contents of the file. The values it
+	 * initializes are {@link #totalTime}, {@link #noOfItems}
+	 * ,{@link #timeArray}, {@link #satisfactionArray} and
+	 * {@link #timeSatisfactionArray}
+	 * 
+	 * @throws ServiceException
+	 *             may throw {@link ServiceException} in case the file is not
+	 *             available
+	 */
 	@PostConstruct
-	private void initializeArrays() throws ServiceException {
+	public void initializeArrays() throws ServiceException {
 		BufferedReader br = null;
 		try {
 			Resource resource = getResource();
@@ -107,6 +131,16 @@ public class SatisfactionService {
 		}
 	}
 
+	/**
+	 * This is Knapsack method Implementation using recursive algorithm
+	 * 
+	 * @param noOfItems
+	 *            the number of Items
+	 * @param totalTime
+	 *            the total Time in which to consume/eat the Max Items
+	 * @return the Max Satisfaction value for consuming the Items in
+	 *         {@link #totalTime} with the given {@link #noOfItems}
+	 */
 	private Long getMaxSatisfaction(int noOfItems, int totalTime) {
 		if (timeSatisfactionArray[noOfItems][totalTime] != -1)
 			return timeSatisfactionArray[noOfItems][totalTime];
@@ -124,12 +158,27 @@ public class SatisfactionService {
 		return result;
 	}
 
+	/**
+	 * This method gets the Time a particular item takes at that Index
+	 * 
+	 * @param index
+	 *            the index Item whose time is to be retrieved
+	 * @return the Time taken by this item to be completed
+	 */
 	private long timeAt(int index) {
 		if (timeArray != null)
 			return timeArray[index];
 		return 0L;
 	}
 
+	/**
+	 * This method gets the Satisfaction value a particular item takes at that
+	 * Index
+	 * 
+	 * @param index
+	 *            the index Item whose satisfaction value is to be retrieved
+	 * @return the Time Satisfaction value given by this item to be completed
+	 */
 	private long valueAt(int index) {
 		if (satisfactionArray != null)
 			return satisfactionArray[index];
